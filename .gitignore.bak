@@ -10,5 +10,4 @@ publish
 *.backup
 /Artifacts
 packages
-.vs
 
