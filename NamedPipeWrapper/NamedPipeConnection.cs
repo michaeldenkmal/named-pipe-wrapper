@@ -14,11 +14,7 @@ namespace NamedPipeWrapper
     /// <summary>
     /// Represents a connection between a named pipe client and server.
     /// </summary>
-    /// <typeparam name="TRead">Reference type to read from the named pipe</typeparam>
-    /// <typeparam name="TWrite">Reference type to write to the named pipe</typeparam>
-    public class NamedPipeConnection<TRead, TWrite>
-        where TRead : class
-        where TWrite : class
+    public class NamedPipeConnection
     {
         /// <summary>
         /// Gets the connection's unique identifier.
@@ -38,25 +34,25 @@ namespace NamedPipeWrapper
         /// <summary>
         /// Invoked when the named pipe connection terminates.
         /// </summary>
-        public event ConnectionEventHandler<TRead, TWrite> Disconnected;
+        public event ConnectionEventHandler Disconnected;
 
         /// <summary>
         /// Invoked whenever a message is received from the other end of the pipe.
         /// </summary>
-        public event ConnectionMessageEventHandler<TRead, TWrite> ReceiveMessage;
+        public event ConnectionMessageEventHandler ReceiveMessage;
 
         /// <summary>
         /// Invoked when an exception is thrown during any read/write operation over the named pipe.
         /// </summary>
-        public event ConnectionExceptionEventHandler<TRead, TWrite> Error;
+        public event ConnectionExceptionEventHandler Error;
 
-        private readonly PipeStreamWrapper<TRead, TWrite> _streamWrapper;
+        private readonly PipeStreamWrapper _streamWrapper;
 
         private readonly AutoResetEvent _writeSignal = new AutoResetEvent(false);
         /// <summary>
         /// To support Multithread, we should use BlockingCollection.
         /// </summary>
-        private readonly BlockingCollection<TWrite> _writeQueue = new BlockingCollection<TWrite>();
+        private readonly BlockingCollection<string> _writeQueue = new BlockingCollection<string>();
 
         private bool _notifiedSucceeded;
 
@@ -64,7 +60,7 @@ namespace NamedPipeWrapper
         {
             Id = id;
             Name = name;
-            _streamWrapper = new PipeStreamWrapper<TRead, TWrite>(serverStream);
+            _streamWrapper = new PipeStreamWrapper(serverStream);
         }
 
         /// <summary>
@@ -90,7 +86,7 @@ namespace NamedPipeWrapper
         /// at the next available opportunity.
         /// </summary>
         /// <param name="message"></param>
-        public void PushMessage(TWrite message)
+        public void PushMessage(string message)
         {
             _writeQueue.Add(message);
             _writeSignal.Set();
@@ -149,14 +145,14 @@ namespace NamedPipeWrapper
             {
                 try
                 {
-                    var obj = _streamWrapper.ReadObject();
-                    if (obj == null)
+                    var sz = _streamWrapper.ReadString();
+                    if (sz == null)
                     {
                         CloseImpl();
                         return;
                     }
                     if (ReceiveMessage != null)
-                        ReceiveMessage(this, obj);
+                        ReceiveMessage(this, sz);
                 }
                 catch
                 {
@@ -181,7 +177,7 @@ namespace NamedPipeWrapper
                         //_writeSignal.WaitOne();
                         //while (_writeQueue.Count > 0)
                         {
-                            _streamWrapper.WriteObject(_writeQueue.Take());
+                            _streamWrapper.WriteString(_writeQueue.Take());
                             _streamWrapper.WaitForPipeDrain();
                         }
                     }
@@ -198,11 +194,9 @@ namespace NamedPipeWrapper
     {
         private static int _lastId;
 
-        public static NamedPipeConnection<TRead, TWrite> CreateConnection<TRead, TWrite>(PipeStream pipeStream)
-            where TRead : class
-            where TWrite : class
+        public static NamedPipeConnection CreateConnection(PipeStream pipeStream)
         {
-            return new NamedPipeConnection<TRead, TWrite>(++_lastId, "Client " + _lastId, pipeStream);
+            return new NamedPipeConnection(++_lastId, "Client " + _lastId, pipeStream);
         }
     }
 
@@ -210,31 +204,19 @@ namespace NamedPipeWrapper
     /// Handles new connections.
     /// </summary>
     /// <param name="connection">The newly established connection</param>
-    /// <typeparam name="TRead">Reference type</typeparam>
-    /// <typeparam name="TWrite">Reference type</typeparam>
-    public delegate void ConnectionEventHandler<TRead, TWrite>(NamedPipeConnection<TRead, TWrite> connection)
-        where TRead : class
-        where TWrite : class;
+    public delegate void ConnectionEventHandler(NamedPipeConnection connection);
 
     /// <summary>
     /// Handles messages received from a named pipe.
     /// </summary>
-    /// <typeparam name="TRead">Reference type</typeparam>
-    /// <typeparam name="TWrite">Reference type</typeparam>
     /// <param name="connection">Connection that received the message</param>
     /// <param name="message">Message sent by the other end of the pipe</param>
-    public delegate void ConnectionMessageEventHandler<TRead, TWrite>(NamedPipeConnection<TRead, TWrite> connection, TRead message)
-        where TRead : class
-        where TWrite : class;
+    public delegate void ConnectionMessageEventHandler(NamedPipeConnection connection, string message);
 
     /// <summary>
     /// Handles exceptions thrown during read/write operations.
     /// </summary>
-    /// <typeparam name="TRead">Reference type</typeparam>
-    /// <typeparam name="TWrite">Reference type</typeparam>
     /// <param name="connection">Connection that threw the exception</param>
     /// <param name="exception">The exception that was thrown</param>
-    public delegate void ConnectionExceptionEventHandler<TRead, TWrite>(NamedPipeConnection<TRead, TWrite> connection, Exception exception)
-        where TRead : class
-        where TWrite : class;
+    public delegate void ConnectionExceptionEventHandler(NamedPipeConnection connection, Exception exception);
 }

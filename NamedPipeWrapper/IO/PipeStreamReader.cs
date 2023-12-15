@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NamedPipeWrapper.util;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
@@ -10,11 +11,9 @@ using System.Runtime.Serialization.Formatters.Binary;
 namespace NamedPipeWrapper.IO
 {
     /// <summary>
-    /// Wraps a <see cref="PipeStream"/> object and reads from it.  Deserializes binary data sent by a <see cref="PipeStreamWriter{T}"/>
-    /// into a .NET CLR object specified by <typeparamref name="T"/>.
+    /// Wraps a <see cref="PipeStream"/> object and reads from it.  
     /// </summary>
-    /// <typeparam name="T">Reference type to deserialize data to</typeparam>
-    public class PipeStreamReader<T> where T : class
+    public class PipeStreamReader
     {
         /// <summary>
         /// Gets the underlying <c>PipeStream</c> object.
@@ -26,7 +25,6 @@ namespace NamedPipeWrapper.IO
         /// </summary>
         public bool IsConnected { get; private set; }
 
-        private readonly BinaryFormatter _binaryFormatter = new BinaryFormatter();
 
         /// <summary>
         /// Constructs a new <c>PipeStreamReader</c> object that reads data from the given <paramref name="stream"/>.
@@ -62,7 +60,7 @@ namespace NamedPipeWrapper.IO
         }
 
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="T"/> is not marked as serializable.</exception>
-        private T ReadObject(int len)
+        /*private string ReadObject(int len)
         {
             var data = new byte[len];
             BaseStream.Read(data, 0, len);
@@ -70,7 +68,7 @@ namespace NamedPipeWrapper.IO
             {
                 return (T) _binaryFormatter.Deserialize(memoryStream);
             }
-        }
+        }*/
 
         #endregion
 
@@ -80,10 +78,11 @@ namespace NamedPipeWrapper.IO
         /// </summary>
         /// <returns>The next object read from the pipe, or <c>null</c> if the pipe disconnected.</returns>
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="T"/> is not marked as serializable.</exception>
-        public T ReadObject()
+        public string ReadString()
         {
-            var len = ReadLength();
-            return len == 0 ? default(T) : ReadObject(len);
+            //var len = ReadLength();
+            //return len == 0 ? default(T) : ReadObject(len);
+            return TPipeUtil.readMessageFromNamedPipe(this.BaseStream);
         }
     }
 }
